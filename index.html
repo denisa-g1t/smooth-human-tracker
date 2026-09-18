@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smooth Human Tracker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a0f; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
+    h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: 2px; margin-bottom: 6px; color: #00ff88; text-transform: uppercase; }
+    #subtitle { font-size: 0.8rem; color: #555; margin-bottom: 20px; letter-spacing: 1px; }
+    #container { position: relative; border-radius: 12px; overflow: hidden; box-shadow: 0 0 40px rgba(0,255,136,0.15); border: 1px solid #1a1a2e; }
+    video { display: block; width: 640px; max-width: 100%; height: auto; transform: scaleX(-1); }
+    canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); }
+    #hud { position: absolute; top: 14px; left: 14px; background: rgba(0,0,0,0.6); border: 1px solid #00ff88; border-radius: 8px; padding: 8px 14px; font-size: 1rem; font-weight: 700; color: #00ff88; letter-spacing: 1px; z-index: 10; }
+    #status { margin-top: 16px; font-size: 0.85rem; color: #888; letter-spacing: 1px; }
+    #status.ready { color: #00ff88; } #status.error { color: #ff4444; }
+    #startBtn { margin-top: 18px; background: #00ff88; color: #000; border: none; border-radius: 8px; padding: 12px 32px; font-size: 1rem; font-weight: 700; cursor: pointer; letter-spacing: 1px; }
+    #startBtn:disabled { opacity: 0.4; cursor: default; }
+  </style>
+</head>
+<body>
+  <h1>Smooth Human Tracker</h1>
+  <p id="subtitle">Real-time person detection · runs in your browser</p>
+  <div id="container">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="canvas"></canvas>
+    <div id="hud">People: <span id="count">0</span></div>
+  </div>
+  <p id="status">Loading model…</p>
+  <button id="startBtn" disabled>Start Camera</button>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.17.0/tf.min.js"></script>
+  <script>
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js';
+    document.head.appendChild(s);
+    const video=document.getElementById('video'),canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d'),countEl=document.getElementById('count'),status=document.getElementById('status'),btn=document.getElementById('startBtn');
+    let model=null,running=false;
+    s.onload=async()=>{try{model=await cocoSsd.load();status.textContent='Model ready — click Start Camera';status.className='ready';btn.disabled=false;}catch(e){status.textContent='Failed: '+e.message;status.className='error';}};
+    btn.addEventListener('click',async()=>{if(running)return;try{const stream=await navigator.mediaDevices.getUserMedia({video:true});video.srcObject=stream;await video.play();running=true;btn.disabled=true;status.textContent='Detecting…';status.className='ready';requestAnimationFrame(detect);}catch(e){status.textContent='Camera error: '+e.message;status.className='error';}});
+    async function detect(){if(!model||video.readyState<2){requestAnimationFrame(detect);return;}canvas.width=video.videoWidth;canvas.height=video.videoHeight;const preds=await model.detect(video);ctx.clearRect(0,0,canvas.width,canvas.height);let people=0;for(const p of preds){if(p.class!=='person')continue;people++;const[x,y,w,h]=p.bbox;const conf=Math.round(p.score*100);ctx.strokeStyle='#00ff88';ctx.lineWidth=2.5;ctx.strokeRect(x,y,w,h);ctx.font='bold 14px Segoe UI';const lbl=`Person ${conf}%`;const tw=ctx.measureText(lbl).width;ctx.fillStyle='rgba(0,255,136,0.85)';ctx.fillRect(x,y-24,tw+12,22);ctx.fillStyle='#000';ctx.fillText(lbl,x+6,y-7);}countEl.textContent=people;requestAnimationFrame(detect);}
+  </script>
+</body>
+</html>
